@@ -1,142 +1,117 @@
--- Generic Configurable Target Finder (Fixed & Reliable)
+-- Generic Part Selector GUI (Learning Tool)
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
 local player = Players.LocalPlayer
-
---------------------------------------------------
--- SAFE CHARACTER HANDLING
---------------------------------------------------
-
-local function getCharacter()
-    if player.Character then return player.Character end
-    return player.CharacterAdded:Wait()
-end
-
-local function getHRP()
-    local char = getCharacter()
-    return char:WaitForChild("HumanoidRootPart", 5)
-end
+local mouse = player:GetMouse()
 
 --------------------------------------------------
 -- STATE
 --------------------------------------------------
 
 local ACTIVE = false
-local TARGET_NAME = ""
-local SCAN_RADIUS = 30
-local OFFSET_UNDER = 3
+local SELECTED_NAME = nil
+local FOLLOW = false
 
 --------------------------------------------------
 -- GUI
 --------------------------------------------------
 
 local gui = Instance.new("ScreenGui")
-gui.Name = "TargetFinderGUI"
+gui.Name = "PartSelectorGUI"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 260, 0, 170)
-frame.Position = UDim2.new(0, 20, 0, 20)
-frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.Size = UDim2.new(0, 280, 0, 170)
+frame.Position = UDim2.new(0.5, -140, 0.3, 0)
+frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
 
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 12)
+
+-- Title bar
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0, 30)
-title.Text = "Target Finder (Generic)"
-title.TextColor3 = Color3.new(1,1,1)
+title.Size = UDim2.new(1, -40, 0, 32)
+title.Position = UDim2.new(0, 12, 0, 6)
+title.Text = "Part Selector"
+title.TextColor3 = Color3.fromRGB(255,255,255)
 title.BackgroundTransparency = 1
-title.Font = Enum.Font.SourceSansBold
-title.TextSize = 18
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Left
 
-local input = Instance.new("TextBox", frame)
-input.Size = UDim2.new(1, -20, 0, 30)
-input.Position = UDim2.new(0, 10, 0, 40)
-input.PlaceholderText = "example: rock"
-input.Text = ""
-input.ClearTextOnFocus = false
-input.BackgroundColor3 = Color3.fromRGB(55,55,55)
-input.TextColor3 = Color3.new(1,1,1)
-input.TextSize = 14
+-- Close button
+local close = Instance.new("TextButton", frame)
+close.Size = UDim2.new(0, 24, 0, 24)
+close.Position = UDim2.new(1, -32, 0, 8)
+close.Text = "✕"
+close.Font = Enum.Font.GothamBold
+close.TextSize = 14
+close.TextColor3 = Color3.fromRGB(255,255,255)
+close.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Instance.new("UICorner", close).CornerRadius = UDim.new(1, 0)
 
-local button = Instance.new("TextButton", frame)
-button.Size = UDim2.new(1, -20, 0, 40)
-button.Position = UDim2.new(0, 10, 0, 80)
-button.Text = "Activate"
-button.BackgroundColor3 = Color3.fromRGB(70,70,70)
-button.TextColor3 = Color3.new(1,1,1)
-button.TextSize = 16
-button.Font = Enum.Font.SourceSansBold
+-- Info label
+local info = Instance.new("TextLabel", frame)
+info.Size = UDim2.new(1, -24, 0, 40)
+info.Position = UDim2.new(0, 12, 0, 40)
+info.Text = "Click a part to select it"
+info.TextWrapped = true
+info.TextColor3 = Color3.fromRGB(200,200,200)
+info.BackgroundTransparency = 1
+info.Font = Enum.Font.Gotham
+info.TextSize = 13
 
+-- Toggle button
+local toggle = Instance.new("TextButton", frame)
+toggle.Size = UDim2.new(1, -24, 0, 36)
+toggle.Position = UDim2.new(0, 12, 0, 90)
+toggle.Text = "Activate"
+toggle.Font = Enum.Font.GothamBold
+toggle.TextSize = 14
+toggle.TextColor3 = Color3.fromRGB(255,255,255)
+toggle.BackgroundColor3 = Color3.fromRGB(70,70,70)
+Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 8)
+
+-- Status
 local status = Instance.new("TextLabel", frame)
-status.Size = UDim2.new(1, -20, 0, 20)
-status.Position = UDim2.new(0, 10, 0, 130)
-status.Text = "Status: Inactive"
-status.TextColor3 = Color3.fromRGB(200,200,200)
+status.Size = UDim2.new(1, -24, 0, 24)
+status.Position = UDim2.new(0, 12, 0, 132)
+status.Text = "Status: Idle"
+status.TextColor3 = Color3.fromRGB(170,170,170)
 status.BackgroundTransparency = 1
-status.TextSize = 14
+status.Font = Enum.Font.Gotham
+status.TextSize = 12
 
 --------------------------------------------------
--- TARGET SEARCH
+-- LOGIC
 --------------------------------------------------
 
-local function findNearestTarget()
-    if TARGET_NAME == "" then
-        status.Text = "Status: No target name"
-        return nil
-    end
+-- Close GUI
+close.MouseButton1Click:Connect(function()
+    gui:Destroy()
+end)
 
-    local hrp = getHRP()
-    if not hrp then return nil end
-
-    local closest, bestDist = nil, SCAN_RADIUS
-
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            if string.find(obj.Name:lower(), TARGET_NAME:lower()) then
-                local dist = (hrp.Position - obj.Position).Magnitude
-                if dist < bestDist then
-                    bestDist = dist
-                    closest = obj
-                end
-            end
-        end
-    end
-
-    if not closest then
-        status.Text = 'Status: No "' .. TARGET_NAME .. '" found'
-    end
-
-    return closest
-end
-
---------------------------------------------------
--- MAIN LOOP
---------------------------------------------------
-
-RunService.Heartbeat:Connect(function()
+-- Click to select part
+mouse.Button1Down:Connect(function()
     if not ACTIVE then return end
 
-    local hrp = getHRP()
-    local target = findNearestTarget()
-
-    if hrp and target then
-        status.Text = 'Status: Targeting "' .. target.Name .. '"'
-        hrp.CFrame =
-            target.CFrame
-            * CFrame.new(0, -(target.Size.Y / 2 + OFFSET_UNDER), 0)
+    local target = mouse.Target
+    if target and target:IsA("BasePart") then
+        SELECTED_NAME = target.Name
+        status.Text = 'Selected: "' .. SELECTED_NAME .. '"'
     end
 end)
 
---------------------------------------------------
--- BUTTON
---------------------------------------------------
-
-button.MouseButton1Click:Connect(function()
+-- Toggle
+toggle.MouseButton1Click:Connect(function()
     ACTIVE = not ACTIVE
-    TARGET_NAME = input.Text
-
-    button.Text = ACTIVE and "Deactivate" or "Activate"
-    status.Text = ACTIVE and "Status: Searching..." or "Status: Inactive"
+    toggle.Text = ACTIVE and "Deactivate" or "Activate"
+    status.Text = ACTIVE and "Click a part to select" or "Status: Idle"
 end)
