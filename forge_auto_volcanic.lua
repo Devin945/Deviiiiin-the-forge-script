@@ -1,15 +1,29 @@
 print("SCRIPT STARTED")
 
+-- SERVICES
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
--- Wait for character & HRP
+-- CONFIGURATION
+local MAX_LOG_LINES = 5
+local SEARCH_RADIUS = 50 -- Check within 50 studs of the player
+local TARGET_NAME = "Rock"
+local ACTIVE = true
+
+-- WAIT FOR PLAYER/CHARACTER
+if not player then
+    print("Error: LocalPlayer is nil. Is this running as a LocalScript?")
+    return
+end
+
 local char = player.Character or player.CharacterAdded:Wait()
 local hrp = char:WaitForChild("HumanoidRootPart")
+local humanoid = char:WaitForChild("Humanoid")
 print("Character loaded:", char.Name)
 
--- GUI
+-- === GUI SETUP ===
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "VisibleDebugGUI"
 gui.Parent = player:WaitForChild("PlayerGui")
@@ -50,25 +64,41 @@ status.BackgroundColor3 = Color3.fromRGB(55,55,55)
 status.BackgroundTransparency = 0
 status.RichText = true
 
--- Function to append messages
+-- === LOGGING FUNCTION (FIXED) ===
+
+-- Function to append messages and limit line count
 local function log(msg)
     print(msg)  -- also print to real console
-    status.Text = status.Text .. "\n" .. msg
+    
+    local lines = string.split(status.Text, "\n")
+    table.insert(lines, msg) -- Add new message
+    
+    -- Trim older lines if we exceed the limit
+    while #lines > MAX_LOG_LINES do
+        table.remove(lines, 1) -- Remove the oldest line (index 1)
+    end
+    
+    status.Text = table.concat(lines, "\n")
 end
 
-log("GUI created successfully!")
+log("GUI created successfully! Searching for: "..TARGET_NAME)
+log("Search Radius: "..SEARCH_RADIUS.." studs.")
 
--- Example main loop
-local ACTIVE = true
-local TARGET_NAME = "Rock"
+
+-- === MAIN LOOP (CLEANED) ===
 
 RunService.Heartbeat:Connect(function()
-    if not ACTIVE then return end
+    if not ACTIVE or not hrp or not hrp.Parent then return end
 
-    local closest, bestDist = nil, 50
+    local closest, bestDist = nil, SEARCH_RADIUS
+    
+    -- WARNING: GetDescendants on workspace is highly inefficient on large maps.
+    -- Consider using CollectionService or GetPartsInRadius for performance.
+    
     for _, obj in ipairs(workspace:GetDescendants()) do
         if obj:IsA("BasePart") and obj.Name:lower():find(TARGET_NAME:lower()) then
             local dist = (hrp.Position - obj.Position).Magnitude
+            
             if dist < bestDist then
                 closest = obj
                 bestDist = dist
@@ -76,10 +106,16 @@ RunService.Heartbeat:Connect(function()
         end
     end
 
+    -- === TARGET ACTION/LOGGING (FIXED) ===
+    
     if closest then
-        hrp.CFrame = closest.CFrame * CFrame.new(0, -(closest.Size.Y/2 + 3), 0)
-        log("Targeting: "..closest.Name)
+        -- We are now only LOGGING the target status, not breaking physics by constantly moving CFrame.
+        log("Target found: "..closest.Name.." at "..math.floor(bestDist).." studs.")
+        
+        -- If you wanted to perform an action (e.g., teleport, attach a visual), 
+        -- you would do it here, perhaps only after a specific user input.
+        
     else
-        log("No target found...")
+        log("No target found within "..SEARCH_RADIUS.." studs.")
     end
 end)
