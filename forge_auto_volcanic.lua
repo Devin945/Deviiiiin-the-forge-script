@@ -1,4 +1,4 @@
-print("SCRIPT STARTING")
+print("SCRIPT STARTED")
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -11,37 +11,56 @@ print("Character loaded:", char.Name)
 
 -- GUI
 local gui = Instance.new("ScreenGui")
-gui.Name = "ForgeDebugGUI"
+gui.Name = "VisibleDebugGUI"
 gui.Parent = player:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 280, 0, 140)
-frame.Position = UDim2.new(0.5, -140, 0.3, 0)
-frame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+frame.Size = UDim2.new(0, 350, 0, 180)
+frame.Position = UDim2.new(0.5, -175, 0.4, -90)
+frame.BackgroundColor3 = Color3.fromRGB(35,35,35)
 frame.Active = true
 frame.Draggable = true
 
+-- Corner
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 12)
+
+-- Title
 local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, 0, 0, 30)
+title.Size = UDim2.new(1, -20, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 10)
 title.Text = "Debug GUI"
-title.TextColor3 = Color3.new(1,1,1)
-title.BackgroundTransparency = 1
-title.Font = Enum.Font.SourceSansBold
+title.Font = Enum.Font.GothamBold
 title.TextSize = 16
+title.TextColor3 = Color3.fromRGB(255,255,255)
+title.BackgroundTransparency = 1
+title.TextXAlignment = Enum.TextXAlignment.Left
 
-local info = Instance.new("TextLabel", frame)
-info.Size = UDim2.new(1, -20, 0, 60)
-info.Position = UDim2.new(0, 10, 0, 40)
-info.Text = "Status: Waiting..."
-info.TextWrapped = true
-info.TextColor3 = Color3.fromRGB(200,200,200)
-info.BackgroundTransparency = 1
-info.Font = Enum.Font.SourceSans
-info.TextSize = 14
+-- Status box (acts as console)
+local status = Instance.new("TextLabel", frame)
+status.Size = UDim2.new(1, -20, 0, 120)
+status.Position = UDim2.new(0, 10, 0, 50)
+status.Text = "Status messages will appear here..."
+status.TextWrapped = true
+status.TextYAlignment = Enum.TextYAlignment.Top
+status.Font = Enum.Font.Gotham
+status.TextSize = 14
+status.TextColor3 = Color3.fromRGB(200,200,200)
+status.BackgroundColor3 = Color3.fromRGB(55,55,55)
+status.BackgroundTransparency = 0
+status.RichText = true
 
--- Main loop
+-- Function to append messages
+local function log(msg)
+    print(msg)  -- also print to real console
+    status.Text = status.Text .. "\n" .. msg
+end
+
+log("GUI created successfully!")
+
+-- Example main loop
 local ACTIVE = true
-local TARGET_NAME = "Rock"  -- Example name
+local TARGET_NAME = "Rock"
 
 RunService.Heartbeat:Connect(function()
     if not ACTIVE then return end
@@ -59,11 +78,8 @@ RunService.Heartbeat:Connect(function()
 
     if closest then
         hrp.CFrame = closest.CFrame * CFrame.new(0, -(closest.Size.Y/2 + 3), 0)
-        info.Text = "Targeting: "..closest.Name
-        print("Target found:", closest.Name)
+        log("Targeting: "..closest.Name)
     else
-        info.Text = "Status: No target found"
+        log("No target found...")
     end
 end)
-
-print("SCRIPT LOADED SUCCESSFULLY")
